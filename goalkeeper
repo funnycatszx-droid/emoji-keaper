@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Emoji Keeper</title>
+<style>
+  body {
+    margin: 0;
+    background: #111;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    color: white;
+    font-family: Arial;
+    user-select: none;
+  }
+  #game {
+    background: #222;
+    border: 3px solid #fff;
+    width: 350px;
+    height: 550px;
+    position: relative;
+    overflow: hidden;
+  }
+  #menu, #gameOver {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.8);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    font-size: 22px;
+  }
+  button {
+    padding: 10px 20px;
+    font-size: 18px;
+    background: #4CAF50;
+    border: none;
+    color: white;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  button:hover { background: #45a049; }
+
+  #player {
+    width: 45px;
+    height: 45px;
+    font-size: 40px;
+    position: absolute;
+    bottom: 20px;
+    left: 160px;
+  }
+  .ball {
+    width: 40px;
+    height: 40px;
+    font-size: 35px;
+    position: absolute;
+    top: -50px;
+  }
+  #score, #missed {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    font-size: 18px;
+  }
+  #missed {
+    left: auto;
+    right: 10px;
+  }
+</style>
+</head>
+<body>
+<div id="game">
+
+  <div id="menu">
+    <div>Emoji Keeper</div>
+    <div>Best Score: <span id="bestScore">0</span></div>
+    <button onclick="startGame()">Start</button>
+  </div>
+
+  <div id="score">Score: 0</div>
+  <div id="missed">Missed: 0/3</div>
+
+  <div id="player">😀</div>
+
+  <div id="gameOver" style="display:none;">
+    <div>GAME OVER</div>
+    <div>Score: <span id="finalScore"></span></div>
+    <button onclick="goMenu()">Return to Menu</button>
+  </div>
+</div>
+
+<script>
+let score = 0;
+let missed = 0;
+let playerX = 160;
+let speed = 3.5;
+let balls = [];
+let playing = false;
+
+const game = document.getElementById("game");
+const player = document.getElementById("player");
+const scoreDisplay = document.getElementById("score");
+const missedDisplay = document.getElementById("missed");
+const menu = document.getElementById("menu");
+const gameOver = document.getElementById("gameOver");
+const bestScoreDisplay = document.getElementById("bestScore");
+const finalScoreDisplay = document.getElementById("finalScore");
+
+let bestScore = localStorage.getItem("bestScore") || 0;
+bestScoreDisplay.textContent = bestScore;
+
+function startGame() {
+  menu.style.display = "none";
+  gameOver.style.display = "none";
+  score = 0;
+  missed = 0;
+  speed = 3.5;
+  playing = true;
+  balls.forEach(e => e.remove());
+  balls = [];
+  scoreDisplay.innerText = "Score: 0";
+  missedDisplay.innerText = "Missed: 0/3";
+  startMusic();
+}
+
+function goMenu() {
+  gameOver.style.display = "none";
+  menu.style.display = "flex";
+}
+
+window.addEventListener("mousemove", e => {
+  if (!playing) return;
+  const rect = game.getBoundingClientRect();
+  let x = e.clientX - rect.left - 17;
+  if (x < 0) x = 0;
+  if (x > 305) x = 305;
+  player.style.left = x + "px";
+  playerX = x;
+});
+
+// Soporte táctil para mobile / apps
+window.addEventListener("touchmove", e => {
+  if (!playing) return;
+  const rect = game.getBoundingClientRect();
+  let x = e.touches[0].clientX - rect.left - 17;
+  if (x < 0) x = 0;
+  if (x > 305) x = 305;
+  player.style.left = x + "px";
+  playerX = x;
+}, { passive: false });
+
+// También permitir tocar para iniciar (útil en móviles)
+window.addEventListener("touchstart", e => {
+  // evita que el navegador haga scroll cuando el juego está en marcha
+  if (playing) e.preventDefault();
+}, { passive: false });
+
+function spawnBall() {
+  if (!playing) return;
+  const ball = document.createElement("div");
+  ball.className = "ball";
+  ball.innerHTML = "⚽";
+  ball.style.left = Math.random() * 305 + "px";
+  ball.y = -50;
+  game.appendChild(ball);
+  balls.push(ball);
+}
+setInterval(spawnBall, 600);
+
+// ======== MÚSICA RETRO 8-BIT ========
+let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+let melodyOsc, melodyGain;
+
+const melodyNotes = [330, 392, 440, 392, 330, 294, 262, 294];
+let noteIndex = 0;
+
+function startMusic() {
+    melodyOsc = audioCtx.createOscillator();
+    melodyGain = audioCtx.createGain();
+
+    melodyOsc.type = "triangle";
+    melodyGain.gain.value = 0.20;
+
+    melodyOsc.connect(melodyGain);
+    melodyGain.connect(audioCtx.destination);
+
+    melodyOsc.start();
+
+    playNextNote();
+}
+
+function playNextNote() {
+    if (!melodyOsc) return;
+
+    melodyOsc.frequency.setValueAtTime(
+        melodyNotes[noteIndex],
+        audioCtx.currentTime
+    );
+
+    noteIndex = (noteIndex + 1) % melodyNotes.length;
+
+    setTimeout(playNextNote, 180);
+}
+
+function stopMusic() {
+    if (melodyOsc) {
+        melodyOsc.stop();
+        melodyOsc = null;
+    }
+}
+
+function loop() {
+  if (playing) {
+    balls.forEach((ball, i) => {
+      ball.y += speed;
+      ball.style.top = ball.y + "px";
+
+      if (ball.y > 485 && ball.y < 550 && Math.abs(parseInt(ball.style.left) - playerX) < 45) {
+        score++;
+        scoreDisplay.innerText = "Score: " + score;
+        ball.remove();
+        balls.splice(i, 1);
+
+        if (score % 8 === 0) speed += 0.4;
+        if (score > 50) speed += 0.15;
+        if (score > 100) speed += 0.25;
+      }
+
+      if (ball.y > 550) {
+        missed++;
+        missedDisplay.innerText = "Missed: " + missed + "/3";
+        ball.remove();
+        balls.splice(i, 1);
+
+        if (missed >= 3) {
+          playing = false;
+          stopMusic();
+          finalScoreDisplay.textContent = score;
+
+          if (score > bestScore) {
+            bestScore = score;
+            localStorage.setItem("bestScore", bestScore);
+            bestScoreDisplay.textContent = bestScore;
+          }
+
+          gameOver.style.display = "flex";
+        }
+      }
+    });
+  }
+
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
